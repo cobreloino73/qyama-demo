@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QYAMA v3.0 — Demo Interactivo</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'IBM Plex Sans',sans-serif;background:#0F1219;color:#E2E8F0;overflow:hidden}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:#1A1F2E}
+::-webkit-scrollbar-thumb{background:#374151;border-radius:3px}
+select{appearance:none;-webkit-appearance:none}
+select option{background:#1E2330;color:#E2E8F0}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef}=React;
+const {ResponsiveContainer,LineChart,Line,XAxis,YAxis,Tooltip,Legend,BarChart,Bar,PieChart,Pie,Cell}=Recharts;
+
+// ═══════════════════════════════════════════
+// THEME
+// ═══════════════════════════════════════════
+const C={
+  copper:'#B87333',copperLight:'#D4945A',copperDark:'#8B5A2B',
+  bg:{primary:'#0F1219',secondary:'#1A1F2E',tertiary:'#242938',card:'#1E2330',hover:'#2A3040',selected:'#323848'},
+  text:{primary:'#E2E8F0',secondary:'#94A3B8',muted:'#64748B'},
+  border:{default:'#2D3548',light:'#374151',focus:'#B87333'},
+  status:{critical:'#EF4444',high:'#F97316',medium:'#EAB308',low:'#22C55E',info:'#3B82F6'},
+  agent:{APEX:'#3B82F6',LEX:'#8B5CF6',SIGMA:'#10B981'},
+  noclaims:{ADCO:'#EF4444',OAD:'#F97316',OEXT:'#EAB308',CGG:'#3B82F6',EXP:'#8B5CF6',CIR:'#EC4899'},
+  chart:['#B87333','#3B82F6','#10B981','#EAB308','#8B5CF6','#EF4444','#EC4899','#06B6D4'],
+};
+const F={heading:"'Sora',sans-serif",body:"'IBM Plex Sans',sans-serif",mono:"'IBM Plex Mono',monospace"};
+const sevColor=s=>C.status[s]||C.status.info;
+const riskColor=s=>s>=75?C.status.critical:s>=50?C.status.high:s>=25?C.status.medium:C.status.low;
+const perfColor=v=>v>=1?C.status.low:v>=.9?C.status.medium:v>=.8?C.status.high:C.status.critical;
+const fmt=v=>{if(v>=1e9)return`$${(v/1e9).toFixed(1)}B`;if(v>=1e6)return`$${(v/1e6).toFixed(1)}M`;if(v>=1e3)return`$${(v/1e3).toFixed(0)}K`;return`$${v}`};
+
+// ═══════════════════════════════════════════
+// EMBEDDED DATA
+// ═══════════════════════════════════════════
+const sites=[
+  {code:'CNO',name:'Cumbre Norte',region:'Antofagasta'},
+  {code:'CSU',name:'Cumbre Sur',region:'Atacama'},
+  {code:'CAN',name:'Cumbre Andina',region:'Antofagasta'},
+  {code:'PAC',name:'Proyecto Pacífico',region:'Coquimbo'},
+  {code:'ALT',name:'Altiplano',region:'Tarapacá'},
+];
+
+const contracts=[
+  {id:'CT-2025-001',title:'Planta Concentradora Fase II',contractor:'Sigdo Koppers',site:'CNO',type:'EPC',amount:142000000,progress:.45,risk:78,cpi:.88,spi:.82,bac:142000000,open_alerts:5,open_snc:4,open_cases:0,module:'M1',status:'active'},
+  {id:'CT-2025-002',title:'Línea de Transmisión 220kV',contractor:'AMEC Foster Wheeler',site:'CNO',type:'EPCM',amount:38500000,progress:.62,risk:45,cpi:1.02,spi:.95,bac:38500000,open_alerts:2,open_snc:1,open_cases:0,module:'M1',status:'active'},
+  {id:'CT-2025-003',title:'Sistema de Relaves Espesados',contractor:'Salfa Corp',site:'CSU',type:'EPC',amount:89000000,progress:.58,risk:91,cpi:.72,spi:.65,bac:89000000,open_alerts:8,open_snc:6,open_cases:2,module:'M2',status:'active'},
+  {id:'CT-2025-004',title:'Chancado Terciario y Cuaternario',contractor:'Besalco',site:'CSU',type:'CM',amount:67000000,progress:.28,risk:35,cpi:1.05,spi:1.02,bac:67000000,open_alerts:1,open_snc:0,open_cases:0,module:'M1',status:'active'},
+  {id:'CT-2025-005',title:'Túnel de Acceso Principal',contractor:'Echeverría Izquierdo',site:'CAN',type:'EPC',amount:125000000,progress:.35,risk:82,cpi:.79,spi:.74,bac:125000000,open_alerts:6,open_snc:5,open_cases:1,module:'M2',status:'active'},
+  {id:'CT-2025-006',title:'Campamento y Servicios Generales',contractor:'Techint',site:'CAN',type:'Servicios',amount:22000000,progress:.75,risk:22,cpi:1.08,spi:1.01,bac:22000000,open_alerts:0,open_snc:1,open_cases:0,module:'M1',status:'active'},
+  {id:'CT-2025-007',title:'Obras Civiles Área de Lixiviación',contractor:'Gardilcic',site:'PAC',type:'CM',amount:54000000,progress:.48,risk:67,cpi:.91,spi:.87,bac:54000000,open_alerts:4,open_snc:3,open_cases:0,module:'M1',status:'active'},
+  {id:'CT-2025-008',title:'Subestación Eléctrica 110kV',contractor:'Astaldi Chile',site:'PAC',type:'EPCM',amount:31000000,progress:.15,risk:55,cpi:.95,spi:.88,bac:31000000,open_alerts:3,open_snc:2,open_cases:0,module:'M1',status:'active'},
+  {id:'CT-2025-009',title:'Planta Desalinizadora',contractor:'ICSK',site:'ALT',type:'EPC',amount:98000000,progress:.52,risk:60,cpi:.93,spi:.90,bac:98000000,open_alerts:3,open_snc:2,open_cases:0,module:'M1',status:'active'},
+  {id:'CT-2025-010',title:'Caminos de Servicio y Accesos',contractor:'Grupo Cointer',site:'ALT',type:'CM',amount:18500000,progress:.20,risk:40,cpi:1.01,spi:.96,bac:18500000,open_alerts:1,open_snc:1,open_cases:0,module:'M1',status:'active'},
+  {id:'CT-2025-011',title:'Sistema de Ventilación Mina',contractor:'Sigdo Koppers',site:'CAN',type:'EPC',amount:48000000,progress:.42,risk:58,cpi:.94,spi:.91,bac:48000000,open_alerts:2,open_snc:2,open_cases:0,module:'M1',status:'active'},
+  {id:'CT-2025-012',title:'Presa de Colas Etapa 3',contractor:'Besalco',site:'CNO',type:'EPC',amount:4800000,progress:.90,risk:28,cpi:1.03,spi:1.00,bac:4800000,open_alerts:0,open_snc:0,open_cases:0,module:'M1',status:'active'},
+];
+
+const alerts=[
+  {id:1,contract_id:'CT-2025-001',severity:'critical',type:'costo',agent:'SIGMA',source:'EVM',title:'CPI bajo 0.90 — sobrecosto acumulado 12%',description:'El índice de desempeño de costo ha caído por debajo del umbral. ACWP supera BCWP en USD 7.8M.',status:'open',contract_title:'Planta Concentradora Fase II'},
+  {id:2,contract_id:'CT-2025-001',severity:'critical',type:'plazo',agent:'APEX',source:'Reporte Avance',title:'SPI bajo 0.85 — atraso crítico ruta crítica',description:'Actividad de montaje estructural con 23 días de atraso. Impacto en hito contractual Q3.',status:'open',contract_title:'Planta Concentradora Fase II'},
+  {id:3,contract_id:'CT-2025-001',severity:'high',type:'legal',agent:'LEX',source:'Correo',title:'Vencimiento plazo respuesta Carta N°047',description:'Plazo contractual de 15 días para responder carta del contratista vence en 3 días.',status:'open',contract_title:'Planta Concentradora Fase II'},
+  {id:4,contract_id:'CT-2025-001',severity:'high',type:'calidad',agent:'APEX',source:'NCR',title:'NCR abierta sin respuesta > 10 días',description:'NCR-2025-012 sobre hormigón fuera de especificación sin plan de acción.',status:'acknowledged',contract_title:'Planta Concentradora Fase II'},
+  {id:5,contract_id:'CT-2025-001',severity:'medium',type:'recursos',agent:'APEX',source:'Reporte Avance',title:'Dotación bajo mínimo contractual',description:'Contratista reporta 180 trabajadores vs 220 comprometidos.',status:'open',contract_title:'Planta Concentradora Fase II'},
+  {id:6,contract_id:'CT-2025-003',severity:'critical',type:'costo',agent:'SIGMA',source:'EVM',title:'CPI = 0.72 — sobrecosto severo 28%',description:'Contrato con el peor desempeño de costo del portafolio. EAC proyecta USD 123.6M vs BAC USD 89M.',status:'open',contract_title:'Sistema de Relaves Espesados'},
+  {id:7,contract_id:'CT-2025-003',severity:'critical',type:'plazo',agent:'APEX',source:'EVM',title:'SPI = 0.65 — atraso generalizado 35%',description:'Múltiples actividades de ruta crítica atrasadas. Riesgo de extensión de plazo > 6 meses.',status:'open',contract_title:'Sistema de Relaves Espesados'},
+  {id:8,contract_id:'CT-2025-003',severity:'critical',type:'legal',agent:'LEX',source:'Correo',title:'Reclamo formal por mayores obras (ADCO)',description:'Contratista presentó reclamo formal por USD 12.4M en obras adicionales no reconocidas.',status:'open',contract_title:'Sistema de Relaves Espesados'},
+  {id:9,contract_id:'CT-2025-003',severity:'high',type:'costo',agent:'SIGMA',source:'SAP',title:'TCPI > 1.3 — recuperación improbable',description:'Para completar dentro del presupuesto se necesita TCPI de 1.35, considerado inalcanzable.',status:'open',contract_title:'Sistema de Relaves Espesados'},
+  {id:10,contract_id:'CT-2025-003',severity:'high',type:'calidad',agent:'APEX',source:'NCR',title:'3 NCRs abiertas simultáneas',description:'NCR en soldadura, hormigón y relleno compactado. Patrón de deficiencias sistémicas.',status:'open',contract_title:'Sistema de Relaves Espesados'},
+  {id:11,contract_id:'CT-2025-003',severity:'high',type:'legal',agent:'LEX',source:'LOD',title:'Notificación de suspensión parcial',description:'Contratista notifica posible suspensión de frente de trabajo Sector B.',status:'acknowledged',contract_title:'Sistema de Relaves Espesados'},
+  {id:12,contract_id:'CT-2025-003',severity:'medium',type:'recursos',agent:'APEX',source:'Minuta',title:'Rotación alta de personal clave',description:'Tercer cambio de Jefe de Terreno en 6 meses.',status:'open',contract_title:'Sistema de Relaves Espesados'},
+  {id:13,contract_id:'CT-2025-003',severity:'medium',type:'plazo',agent:'APEX',source:'SDI',title:'Retraso en aprobación de ingeniería',description:'Paquete IFC-042 pendiente hace 18 días. Bloquea inicio de montaje mecánico.',status:'open',contract_title:'Sistema de Relaves Espesados'},
+  {id:14,contract_id:'CT-2025-005',severity:'critical',type:'plazo',agent:'APEX',source:'Reporte Avance',title:'Atraso severo en excavación túnel',description:'Avance real 340m vs 520m planificado. Condiciones geológicas adversas.',status:'open',contract_title:'Túnel de Acceso Principal'},
+  {id:15,contract_id:'CT-2025-005',severity:'critical',type:'costo',agent:'SIGMA',source:'SAP',title:'Sobrecosto por condiciones de terreno',description:'Necesidad de sostenimiento adicional incrementa costo en USD 15.2M.',status:'open',contract_title:'Túnel de Acceso Principal'},
+  {id:16,contract_id:'CT-2025-005',severity:'high',type:'legal',agent:'LEX',source:'Correo',title:'Disputa sobre clasificación de roca',description:'Contratista clasifica como Tipo V (pago mayor), mandante como Tipo III.',status:'open',contract_title:'Túnel de Acceso Principal'},
+  {id:17,contract_id:'CT-2025-005',severity:'high',type:'calidad',agent:'APEX',source:'LOD',title:'Desviación en alineamiento del túnel',description:'Desviación de 8cm en los últimos 50m. Requiere topografía de control.',status:'acknowledged',contract_title:'Túnel de Acceso Principal'},
+  {id:18,contract_id:'CT-2025-007',severity:'high',type:'costo',agent:'SIGMA',source:'SAP',title:'Sobrecosto 9% en movimiento de tierras',description:'Volumen real de excavación 15% superior a cubicación original.',status:'open',contract_title:'Obras Civiles Área de Lixiviación'},
+  {id:19,contract_id:'CT-2025-007',severity:'high',type:'plazo',agent:'APEX',source:'Reporte Avance',title:'Atraso en fundaciones Área 4',description:'Fundaciones atrasadas 12 días por interferencia con instalaciones existentes.',status:'open',contract_title:'Obras Civiles Área de Lixiviación'},
+  {id:20,contract_id:'CT-2025-008',severity:'high',type:'plazo',agent:'APEX',source:'Correo',title:'Retraso importación transformador principal',description:'Transformador de poder con 45 días de retraso en despacho desde fábrica.',status:'open',contract_title:'Subestación Eléctrica 110kV'},
+];
+
+// EVM curve data for CT-2025-001
+const evmData=Array.from({length:20},(_, i)=>{
+  const p=i+1;const t=p/28;
+  const bcws=Math.round(142e6*(1-Math.exp(-3*t))*(.6+.4*t));
+  const bcwp=Math.round(bcws*(p<10?.95:p<15?.88:.82));
+  const acwp=Math.round(bcwp/(p<10?1.02:p<15?.92:.88));
+  return{period:p,date:`2024-${String(3+Math.floor((p-1)/2)).padStart(2,'0')}`,bcws,bcwp,acwp};
+});
+
+// ═══════════════════════════════════════════
+// SVG ICONS (inline, no external deps)
+// ═══════════════════════════════════════════
+const Icon=({type,size=20,color='currentColor'})=>{
+  const s={width:size,height:size,fill:'none',stroke:color,strokeWidth:1.8,strokeLinecap:'round',strokeLinejoin:'round'};
+  const icons={
+    dashboard:<svg {...s}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>,
+    folder:<svg {...s}><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>,
+    alert:<svg {...s}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+    file:<svg {...s}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>,
+    trend:<svg {...s}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
+    scale:<svg {...s}><path d="M16 3l4 4-4 4"/><path d="M20 7H4"/><path d="M8 21l-4-4 4-4"/><path d="M4 17h16"/></svg>,
+    chart:<svg {...s}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+    book:<svg {...s}><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>,
+    chevL:<svg {...s}><polyline points="15 18 9 12 15 6"/></svg>,
+    chevR:<svg {...s}><polyline points="9 18 15 12 9 6"/></svg>,
+  };
+  return icons[type]||null;
+};
+
+// ═══════════════════════════════════════════
+// SIDEBAR
+// ═══════════════════════════════════════════
+const NAV=[
+  {id:'dashboard',icon:'dashboard',label:'Dashboard'},
+  {id:'cartera',icon:'folder',label:'Cartera M1'},
+  {id:'alertas',icon:'alert',label:'Alertas'},
+  {id:'evm',icon:'trend',label:'EVM'},
+  {id:'manual',icon:'book',label:'Manual'},
+];
+
+function Sidebar({page,setPage,collapsed,toggle}){
+  return(
+    <aside style={{width:collapsed?64:220,background:C.bg.secondary,borderRight:`1px solid ${C.border.default}`,display:'flex',flexDirection:'column',transition:'width .2s',overflow:'hidden',flexShrink:0}}>
+      <div style={{padding:collapsed?'16px 8px':'20px',borderBottom:`1px solid ${C.border.default}`,display:'flex',alignItems:'center',gap:12,minHeight:64}}>
+        <div style={{width:36,height:36,borderRadius:8,background:`linear-gradient(135deg,${C.copper},${C.copperDark})`,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:F.heading,fontWeight:700,fontSize:16,color:'#fff',flexShrink:0}}>Q</div>
+        {!collapsed&&<div><div style={{fontFamily:F.heading,fontWeight:600,fontSize:16,color:C.text.primary}}>QYAMA</div><div style={{fontSize:10,color:C.text.muted,letterSpacing:1}}>קְיָמָא v3.0</div></div>}
+      </div>
+      <nav style={{flex:1,padding:'12px 8px',display:'flex',flexDirection:'column',gap:2}}>
+        {NAV.map(n=>{
+          const active=page===n.id;
+          return(
+            <button key={n.id} onClick={()=>setPage(n.id)} style={{display:'flex',alignItems:'center',gap:12,padding:collapsed?'10px 0':'10px 12px',justifyContent:collapsed?'center':'flex-start',background:active?C.bg.selected:'transparent',border:'none',borderRadius:8,cursor:'pointer',color:active?C.copper:C.text.secondary,fontSize:14,fontFamily:F.body,fontWeight:active?500:400,width:'100%',borderLeft:active?`3px solid ${C.copper}`:'3px solid transparent'}}>
+              <Icon type={n.icon} size={20} color={active?C.copper:C.text.secondary}/>
+              {!collapsed&&<span>{n.label}</span>}
+            </button>
+          );
+        })}
+      </nav>
+      <button onClick={toggle} style={{padding:12,border:'none',cursor:'pointer',background:'transparent',color:C.text.muted,borderTop:`1px solid ${C.border.default}`,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <Icon type={collapsed?'chevR':'chevL'} size={18}/>
+      </button>
+    </aside>
+  );
+}
+
+// ═══════════════════════════════════════════
+// DASHBOARD PAGE
+// ═══════════════════════════════════════════
+function DashboardPage(){
+  const totalAmount=contracts.reduce((s,c)=>s+c.amount,0);
+  const totalAlerts=contracts.reduce((s,c)=>s+c.open_alerts,0);
+  const totalSNC=contracts.reduce((s,c)=>s+c.open_snc,0);
+  const critAlerts=alerts.filter(a=>a.severity==='critical'&&a.status==='open').length;
+  const avgCPI=(contracts.reduce((s,c)=>s+c.cpi,0)/contracts.length).toFixed(2);
+  const avgSPI=(contracts.reduce((s,c)=>s+c.spi,0)/contracts.length).toFixed(2);
+
+  const stats=[
+    {label:'Contratos Activos',value:contracts.length,sub:'portafolio total',color:C.copper},
+    {label:'Monto Comprometido',value:fmt(totalAmount),sub:`${contracts.length} contratos`,color:C.status.info},
+    {label:'Alertas Abiertas',value:totalAlerts,sub:`${critAlerts} críticas`,color:C.status.critical},
+    {label:'SNC Pendientes',value:totalSNC,sub:'notas de cambio',color:C.status.medium},
+    {label:'CPI Promedio',value:avgCPI,sub:avgCPI<1?'sobrecosto':'en presupuesto',color:perfColor(parseFloat(avgCPI))},
+    {label:'SPI Promedio',value:avgSPI,sub:avgSPI<1?'atrasado':'en plazo',color:perfColor(parseFloat(avgSPI))},
+  ];
+
+  const recentAlerts=alerts.filter(a=>a.status==='open').slice(0,5);
+  const riskContracts=[...contracts].sort((a,b)=>b.risk-a.risk).slice(0,5);
+
+  return(
+    <div>
+      <div style={{marginBottom:24}}>
+        <h1 style={{fontFamily:F.heading,fontSize:24,fontWeight:600,color:C.text.primary}}>Dashboard</h1>
+        <p style={{fontSize:13,color:C.text.muted,marginTop:4}}>Minera Cumbre — Vista General del Portafolio</p>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:24}}>
+        {stats.map((s,i)=>(
+          <div key={i} style={{padding:'16px 20px',background:C.bg.card,border:`1px solid ${C.border.default}`,borderRadius:12,borderLeft:`4px solid ${s.color}`}}>
+            <div style={{fontSize:11,color:C.text.muted,marginBottom:6}}>{s.label}</div>
+            <div style={{fontSize:26,fontFamily:F.heading,fontWeight:700,color:s.color}}>{s.value}</div>
+            <div style={{fontSize:11,color:C.text.muted,marginTop:4}}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+        <div style={{background:C.bg.card,border:`1px solid ${C.border.default}`,borderRadius:12,padding:20}}>
+          <h3 style={{fontFamily:F.heading,fontSize:14,fontWeight:600,color:C.text.primary,marginBottom:16}}>Alertas Recientes</h3>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {recentAlerts.map(a=>(
+              <div key={a.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:C.bg.tertiary,borderRadius:8,borderLeft:`3px solid ${sevColor(a.severity)}`}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:12,color:C.text.primary,fontWeight:500}}>{a.title}</div>
+                  <div style={{fontSize:10,color:C.text.muted,marginTop:2}}>{a.contract_title} • {a.agent}</div>
+                </div>
+                <span style={{fontSize:9,padding:'1px 6px',borderRadius:4,background:`${sevColor(a.severity)}20`,color:sevColor(a.severity),fontWeight:600,textTransform:'uppercase'}}>{a.severity}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{background:C.bg.card,border:`1px solid ${C.border.default}`,borderRadius:12,padding:20}}>
+          <h3 style={{fontFamily:F.heading,fontSize:14,fontWeight:600,color:C.text.primary,marginBottom:16}}>Contratos Mayor Riesgo</h3>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {riskContracts.map(c=>(
+              <div key={c.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:C.bg.tertiary,borderRadius:8}}>
+                <div style={{width:36,height:36,borderRadius:8,background:`${riskColor(c.risk)}15`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:riskColor(c.risk),fontFamily:F.heading}}>{c.risk}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:12,color:C.text.primary,fontWeight:500}}>{c.title}</div>
+                  <div style={{fontSize:10,color:C.text.muted,marginTop:2}}>{c.contractor} • CPI {c.cpi} • SPI {c.spi}</div>
+                </div>
+                <div style={{display:'flex',gap:4}}>
+                  {c.open_alerts>0&&<span style={{fontSize:9,padding:'1px 6px',borderRadius:4,background:`${C.status.critical}20`,color:C.status.critical,fontWeight:600}}>{c.open_alerts} alertas</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// CARTERA PAGE
+// ═══════════════════════════════════════════
+function CarteraPage(){
+  const [filter,setFilter]=useState('');
+  const filtered=filter?contracts.filter(c=>c.site===filter):contracts;
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+        <div>
+          <h1 style={{fontFamily:F.heading,fontSize:24,fontWeight:600,color:C.text.primary}}>Cartera de Contratos</h1>
+          <p style={{fontSize:13,color:C.text.muted,marginTop:4}}>{filtered.length} contratos activos • {fmt(filtered.reduce((s,c)=>s+c.amount,0))} comprometidos</p>
+        </div>
+        <select value={filter} onChange={e=>setFilter(e.target.value)} style={{padding:'8px 12px',background:C.bg.card,border:`1px solid ${C.border.default}`,borderRadius:8,color:C.text.primary,fontSize:13,fontFamily:F.body,cursor:'pointer',outline:'none'}}>
+          <option value="">Todas las faenas</option>
+          {sites.map(s=><option key={s.code} value={s.code}>{s.name}</option>)}
+        </select>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:12}}>
+        {filtered.map(c=>(
+          <div key={c.id} style={{background:C.bg.card,border:`1px solid ${C.border.default}`,borderRadius:12,padding:18,borderLeft:`4px solid ${riskColor(c.risk)}`}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+              <div>
+                <div style={{fontSize:15,fontWeight:600,color:C.text.primary,fontFamily:F.heading}}>{c.title}</div>
+                <div style={{fontSize:12,color:C.text.secondary,marginTop:4}}>{c.contractor} • {sites.find(s=>s.code===c.site)?.name}</div>
+              </div>
+              <div style={{display:'flex',gap:4}}>
+                <span style={{fontSize:9,padding:'2px 8px',borderRadius:4,background:`${C.copper}20`,color:C.copper,fontWeight:600}}>{c.type}</span>
+                <span style={{fontSize:9,padding:'2px 8px',borderRadius:4,background:`${C.status.info}20`,color:C.status.info,fontWeight:600}}>{c.module}</span>
+              </div>
+            </div>
+            <div style={{marginTop:12,display:'flex',alignItems:'center',gap:8}}>
+              <div style={{flex:1,height:6,background:C.bg.tertiary,borderRadius:3,overflow:'hidden'}}>
+                <div style={{width:`${c.progress*100}%`,height:'100%',background:C.copper,borderRadius:3}}/>
+              </div>
+              <span style={{fontSize:12,fontWeight:600,color:C.text.primary,fontFamily:F.mono}}>{(c.progress*100).toFixed(0)}%</span>
+            </div>
+            <div style={{display:'flex',gap:16,marginTop:12}}>
+              <div><div style={{fontSize:10,color:C.text.muted}}>Monto</div><div style={{fontSize:13,fontWeight:600,color:C.text.primary,fontFamily:F.mono}}>{fmt(c.amount)}</div></div>
+              <div><div style={{fontSize:10,color:C.text.muted}}>CPI</div><div style={{fontSize:13,fontWeight:600,color:perfColor(c.cpi),fontFamily:F.mono}}>{c.cpi.toFixed(2)}</div></div>
+              <div><div style={{fontSize:10,color:C.text.muted}}>SPI</div><div style={{fontSize:13,fontWeight:600,color:perfColor(c.spi),fontFamily:F.mono}}>{c.spi.toFixed(2)}</div></div>
+              <div><div style={{fontSize:10,color:C.text.muted}}>Riesgo</div><div style={{fontSize:13,fontWeight:600,color:riskColor(c.risk),fontFamily:F.mono}}>{c.risk}</div></div>
+            </div>
+            {(c.open_alerts>0||c.open_snc>0||c.open_cases>0)&&(
+              <div style={{display:'flex',gap:6,marginTop:10}}>
+                {c.open_alerts>0&&<span style={{fontSize:9,padding:'2px 8px',borderRadius:4,background:`${C.status.critical}15`,color:C.status.critical,fontWeight:600}}>{c.open_alerts} alertas</span>}
+                {c.open_snc>0&&<span style={{fontSize:9,padding:'2px 8px',borderRadius:4,background:`${C.status.medium}15`,color:C.status.medium,fontWeight:600}}>{c.open_snc} SNC</span>}
+                {c.open_cases>0&&<span style={{fontSize:9,padding:'2px 8px',borderRadius:4,background:`${C.status.high}15`,color:C.status.high,fontWeight:600}}>{c.open_cases} casos</span>}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// ALERTS PAGE
+// ═══════════════════════════════════════════
+function AlertsPage(){
+  const [filter,setFilter]=useState({severity:'',type:''});
+  const filtered=alerts.filter(a=>{
+    if(filter.severity&&a.severity!==filter.severity)return false;
+    if(filter.type&&a.type!==filter.type)return false;
+    return true;
+  });
+  const bySev=['critical','high','medium','info'].map(s=>({severity:s,count:alerts.filter(a=>a.severity===s&&a.status!=='resolved').length})).filter(s=>s.count>0);
+
+  return(
+    <div>
+      <div style={{marginBottom:20}}>
+        <h1 style={{fontFamily:F.heading,fontSize:24,fontWeight:600,color:C.text.primary}}>Centro de Alertas</h1>
+        <p style={{fontSize:13,color:C.text.muted,marginTop:4}}>{filtered.length} alertas{filter.severity||filter.type?' (filtradas)':''}</p>
+      </div>
+      <div style={{display:'flex',gap:12,marginBottom:20}}>
+        {bySev.map(s=>(
+          <div key={s.severity} onClick={()=>setFilter(f=>({...f,severity:f.severity===s.severity?'':s.severity}))} style={{padding:'12px 20px',borderRadius:10,background:`${sevColor(s.severity)}10`,border:`1px solid ${sevColor(s.severity)}30`,display:'flex',alignItems:'center',gap:10,cursor:'pointer'}}>
+            <Icon type="alert" size={18} color={sevColor(s.severity)}/>
+            <div>
+              <div style={{fontSize:22,fontFamily:F.heading,fontWeight:600,color:sevColor(s.severity)}}>{s.count}</div>
+              <div style={{fontSize:11,color:C.text.muted,textTransform:'capitalize'}}>{s.severity}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{display:'flex',gap:10,marginBottom:16}}>
+        {[{key:'severity',label:'Severidad',opts:['critical','high','medium','info']},{key:'type',label:'Tipo',opts:['plazo','costo','legal','calidad','recursos']}].map(f=>(
+          <select key={f.key} value={filter[f.key]} onChange={e=>setFilter(p=>({...p,[f.key]:e.target.value}))} style={{padding:'8px 12px',background:C.bg.card,border:`1px solid ${C.border.default}`,borderRadius:8,color:C.text.primary,fontSize:13,fontFamily:F.body,cursor:'pointer',outline:'none'}}>
+            <option value="">{f.label}: Todas</option>
+            {f.opts.map(o=><option key={o} value={o}>{o}</option>)}
+          </select>
+        ))}
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:8}}>
+        {filtered.map(a=>(
+          <div key={a.id} style={{display:'flex',alignItems:'flex-start',gap:14,padding:'14px 18px',background:C.bg.card,border:`1px solid ${C.border.default}`,borderRadius:10,borderLeft:`4px solid ${sevColor(a.severity)}`}}>
+            <Icon type="alert" size={18} color={sevColor(a.severity)}/>
+            <div style={{flex:1}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:14,color:C.text.primary,fontWeight:500}}>{a.title}</span>
+                <span style={{fontSize:9,padding:'1px 6px',borderRadius:4,background:`${sevColor(a.severity)}20`,color:sevColor(a.severity),fontWeight:600,textTransform:'uppercase'}}>{a.severity}</span>
+                <span style={{fontSize:9,padding:'1px 6px',borderRadius:4,background:C.bg.tertiary,color:C.text.muted,fontWeight:600}}>{a.type}</span>
+              </div>
+              {a.description&&<div style={{fontSize:12,color:C.text.secondary,marginTop:4,lineHeight:1.5}}>{a.description}</div>}
+              <div style={{fontSize:11,color:C.text.muted,marginTop:6,display:'flex',alignItems:'center',gap:4}}>
+                <span>{a.contract_title}</span><span>•</span><span>{a.agent}</span>
+                {a.source&&<><span>•</span><span style={{padding:'1px 7px',borderRadius:4,background:`${C.copper}18`,color:C.copper,fontWeight:600,fontSize:10,border:`1px solid ${C.copper}30`}}>{a.source}</span></>}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// EVM PAGE
+// ═══════════════════════════════════════════
+function EVMPage(){
+  const [sel,setSel]=useState('CT-2025-001');
+  const c=contracts.find(x=>x.id===sel);
+  const eac=Math.round(c.bac/c.cpi);
+  const vac=c.bac-eac;
+  const tcpi=((c.bac-(c.bac*c.progress*c.cpi))/(c.bac-(c.bac*c.progress))).toFixed(2);
+
+  const chartData=evmData.map(d=>({name:`P${d.period}`,PV:Math.round(d.bcws/1e6),EV:Math.round(d.bcwp/1e6),AC:Math.round(d.acwp/1e6)}));
+
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+        <div>
+          <h1 style={{fontFamily:F.heading,fontSize:24,fontWeight:600,color:C.text.primary}}>Earned Value Management</h1>
+          <p style={{fontSize:13,color:C.text.muted,marginTop:4}}>Curva S y métricas EVM</p>
+        </div>
+        <select value={sel} onChange={e=>setSel(e.target.value)} style={{padding:'8px 12px',background:C.bg.card,border:`1px solid ${C.border.default}`,borderRadius:8,color:C.text.primary,fontSize:13,fontFamily:F.body,cursor:'pointer',outline:'none'}}>
+          {contracts.map(c=><option key={c.id} value={c.id}>{c.title}</option>)}
+        </select>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:10,marginBottom:20}}>
+        {[
+          {label:'BAC',value:fmt(c.bac),color:C.status.info},
+          {label:'CPI',value:c.cpi.toFixed(2),color:perfColor(c.cpi)},
+          {label:'SPI',value:c.spi.toFixed(2),color:perfColor(c.spi)},
+          {label:'EAC',value:fmt(eac),color:eac>c.bac?C.status.critical:C.status.low},
+          {label:'VAC',value:fmt(Math.abs(vac)),color:vac<0?C.status.critical:C.status.low},
+          {label:'TCPI',value:tcpi,color:parseFloat(tcpi)>1.2?C.status.critical:C.status.medium},
+        ].map((m,i)=>(
+          <div key={i} style={{padding:'12px 16px',background:C.bg.card,border:`1px solid ${C.border.default}`,borderRadius:10,textAlign:'center'}}>
+            <div style={{fontSize:10,color:C.text.muted,marginBottom:4}}>{m.label}</div>
+            <div style={{fontSize:20,fontFamily:F.heading,fontWeight:700,color:m.color}}>{m.value}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{background:C.bg.card,border:`1px solid ${C.border.default}`,borderRadius:12,padding:20}}>
+        <h3 style={{fontFamily:F.heading,fontSize:14,fontWeight:600,color:C.text.primary,marginBottom:16}}>Curva S — {c.title}</h3>
+        <ResponsiveContainer width="100%" height={320}>
+          <LineChart data={chartData}>
+            <XAxis dataKey="name" tick={{fill:C.text.muted,fontSize:10}} axisLine={{stroke:C.border.default}}/>
+            <YAxis tick={{fill:C.text.muted,fontSize:10}} axisLine={{stroke:C.border.default}} tickFormatter={v=>`$${v}M`}/>
+            <Tooltip contentStyle={{background:C.bg.secondary,border:`1px solid ${C.border.default}`,borderRadius:8,fontSize:12}} formatter={v=>[`$${v}M`]}/>
+            <Legend wrapperStyle={{fontSize:11}}/>
+            <Line type="monotone" dataKey="PV" stroke="#3B82F6" strokeWidth={2} dot={false} name="Valor Planificado (BCWS)"/>
+            <Line type="monotone" dataKey="EV" stroke="#10B981" strokeWidth={2} dot={false} name="Valor Ganado (BCWP)"/>
+            <Line type="monotone" dataKey="AC" stroke="#EF4444" strokeWidth={2} dot={false} name="Costo Real (ACWP)"/>
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// MANUAL PAGE
+// ═══════════════════════════════════════════
+const manualSections=[
+  {id:'overview',icon:'book',title:'Visión General',color:C.copper,content:`QYAMA es una plataforma multi-agente de prevención y gestión de controversias contractuales para proyectos de minería e infraestructura.\n\nEl sistema está organizado en tres módulos:\n• M1 — Prevención: Monitoreo proactivo de contratos, alertas tempranas y gestión de riesgos.\n• M2 — Controversias Spot: Gestión de reclamos puntuales durante la ejecución.\n• M3 — Controversias Marco: Gestión de disputas a nivel de contrato marco.\n\nCada módulo cuenta con agentes de inteligencia artificial especializados que analizan datos en tiempo real.`},
+  {id:'dashboard',icon:'dashboard',title:'Dashboard',color:'#3B82F6',content:`Panel principal con la vista consolidada del portafolio.\n\nMétricas clave:\n• Total de contratos activos y montos comprometidos\n• Alertas abiertas por severidad (crítica, alta, media, info)\n• Notas de cambio (SNC) pendientes\n• CPI y SPI promedio del portafolio\n\nUso recomendado: Revisar diariamente como punto de entrada para identificar temas que requieren atención inmediata.`},
+  {id:'cartera',icon:'folder',title:'Cartera M1',color:'#3B82F6',content:`Listado completo de contratos activos con indicadores de desempeño.\n\nCada tarjeta muestra:\n• Título, contratista y faena minera\n• Tipo de contrato (EPC, EPCM, CM, Servicios)\n• Avance físico con barra de progreso\n• Indicadores EVM: CPI (costo) y SPI (plazo)\n• Score de riesgo con código de color\n• Contadores de alertas, SNC y casos abiertos\n\nFiltros: Por faena, tipo de contrato, estado y módulo.`},
+  {id:'alertas',icon:'alert',title:'Centro de Alertas',color:'#EF4444',content:`Sistema de alertas tempranas generadas por los agentes de IA.\n\nTipos de alerta:\n• Plazo: Atrasos en ruta crítica, SPI bajo umbral\n• Costo: Sobrecostos, CPI bajo umbral, TCPI inalcanzable\n• Legal: Vencimientos contractuales, reclamos formales\n• Calidad: NCRs abiertas, deficiencias sistémicas\n• Recursos: Dotación insuficiente, equipos atrasados\n\nFuentes: Cada alerta indica su origen (SAP, LOD, Correos, NCR, EVM, Reportes de Avance, SDI, Contrato). Al hacer click en la fuente se muestra el detalle del documento original.`},
+  {id:'evm',icon:'trend',title:'EVM',color:'#10B981',content:`Análisis de Valor Ganado para control de costos y plazos.\n\nCurva S con tres curvas:\n• BCWS (azul): Valor Planificado\n• BCWP (verde): Valor Ganado\n• ACWP (rojo): Costo Real\n\nIndicadores:\n• CPI: Cost Performance Index (< 1.0 = sobrecosto)\n• SPI: Schedule Performance Index (< 1.0 = atraso)\n• EAC: Proyección del costo final\n• TCPI: Eficiencia requerida para terminar en presupuesto\n• VAC: Diferencia entre BAC y EAC`},
+  {id:'chat',icon:'book',title:'AI Chat',color:C.copper,content:`Chat con agentes de inteligencia artificial especializados.\n\nAgentes disponibles:\n\n• Gestión de Contratos: Consultas sobre avance, plazos, riesgos y actividades críticas.\n\n• Legal y Controversias: Análisis contractual, reclamos y resolución de disputas.\n\n• Control de Costos: EVM, presupuesto, proyecciones y desviaciones.\n\nNota: En esta versión demo estática, el AI Chat requiere el servidor backend con API key configurada.`},
+];
+
+function ManualPage(){
+  const [active,setActive]=useState('overview');
+  const cur=manualSections.find(s=>s.id===active);
+  return(
+    <div>
+      <div style={{marginBottom:24}}>
+        <h1 style={{fontFamily:F.heading,fontSize:24,fontWeight:600,color:C.text.primary}}>Manual de Uso</h1>
+        <p style={{fontSize:13,color:C.text.muted,marginTop:4}}>Guía de referencia — QYAMA v3.0</p>
+      </div>
+      <div style={{display:'flex',gap:20}}>
+        <div style={{width:200,flexShrink:0,display:'flex',flexDirection:'column',gap:4}}>
+          {manualSections.map(s=>{
+            const isA=active===s.id;
+            return(
+              <button key={s.id} onClick={()=>setActive(s.id)} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',border:'none',borderRadius:8,background:isA?`${s.color}15`:'transparent',cursor:'pointer',textAlign:'left',borderLeft:isA?`3px solid ${s.color}`:'3px solid transparent'}}>
+                <Icon type={s.icon} size={16} color={isA?s.color:C.text.muted}/>
+                <span style={{fontSize:13,fontWeight:isA?600:400,color:isA?C.text.primary:C.text.secondary,fontFamily:F.body}}>{s.title}</span>
+              </button>
+            );
+          })}
+        </div>
+        {cur&&(
+          <div style={{flex:1,background:C.bg.card,border:`1px solid ${C.border.default}`,borderRadius:12,padding:'28px 32px',maxWidth:720}}>
+            <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:20}}>
+              <div style={{width:36,height:36,borderRadius:10,background:`${cur.color}15`,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <Icon type={cur.icon} size={20} color={cur.color}/>
+              </div>
+              <h2 style={{fontFamily:F.heading,fontSize:20,fontWeight:600,color:C.text.primary}}>{cur.title}</h2>
+            </div>
+            <div style={{fontSize:13,color:C.text.secondary,lineHeight:1.8,whiteSpace:'pre-line'}}>{cur.content}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// APP
+// ═══════════════════════════════════════════
+function App(){
+  const [page,setPage]=useState('dashboard');
+  const [collapsed,setCollapsed]=useState(false);
+  const pages={dashboard:DashboardPage,cartera:CarteraPage,alertas:AlertsPage,evm:EVMPage,manual:ManualPage};
+  const Page=pages[page]||DashboardPage;
+  return(
+    <div style={{display:'flex',height:'100vh',background:C.bg.primary}}>
+      <Sidebar page={page} setPage={setPage} collapsed={collapsed} toggle={()=>setCollapsed(!collapsed)}/>
+      <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+        <div style={{height:52,padding:'0 24px',borderBottom:`1px solid ${C.border.default}`,background:C.bg.secondary,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div style={{fontSize:13,color:C.text.muted}}>Minera Cumbre — Portafolio de Contratos</div>
+          <div style={{fontSize:11,padding:'4px 10px',borderRadius:6,background:`${C.copper}15`,color:C.copper,fontWeight:600}}>DEMO v3.0</div>
+        </div>
+        <main style={{flex:1,overflow:'auto',padding:24,background:C.bg.primary}}>
+          <Page/>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
