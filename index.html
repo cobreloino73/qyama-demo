@@ -6,8 +6,8 @@
 <title>QYAMA v3.0 — Demo Interactivo</title>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-<script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js" crossorigin></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/recharts@2/umd/Recharts.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -21,9 +21,10 @@ select option{background:#1E2330;color:#E2E8F0}
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel">
-const {useState,useEffect,useRef}=React;
-const {ResponsiveContainer,LineChart,Line,XAxis,YAxis,Tooltip,Legend,BarChart,Bar,PieChart,Pie,Cell}=Recharts;
+<script type="text/babel" data-type="module">
+const {useState,useEffect,useRef,Fragment}=React;
+const RC=window.Recharts||{};
+const {ResponsiveContainer,LineChart,Line,XAxis,YAxis,Tooltip,Legend}=RC;
 
 // ═══════════════════════════════════════════
 // THEME
@@ -106,7 +107,7 @@ const evmData=Array.from({length:20},(_, i)=>{
 // SVG ICONS (inline, no external deps)
 // ═══════════════════════════════════════════
 const Icon=({type,size=20,color='currentColor'})=>{
-  const s={width:size,height:size,fill:'none',stroke:color,strokeWidth:1.8,strokeLinecap:'round',strokeLinejoin:'round'};
+  const s={width:size,height:size,viewBox:'0 0 24 24',fill:'none',stroke:color,strokeWidth:1.8,strokeLinecap:'round',strokeLinejoin:'round'};
   const icons={
     dashboard:<svg {...s}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>,
     folder:<svg {...s}><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>,
@@ -340,7 +341,7 @@ function AlertsPage(){
               {a.description&&<div style={{fontSize:12,color:C.text.secondary,marginTop:4,lineHeight:1.5}}>{a.description}</div>}
               <div style={{fontSize:11,color:C.text.muted,marginTop:6,display:'flex',alignItems:'center',gap:4}}>
                 <span>{a.contract_title}</span><span>•</span><span>{a.agent}</span>
-                {a.source&&<><span>•</span><span style={{padding:'1px 7px',borderRadius:4,background:`${C.copper}18`,color:C.copper,fontWeight:600,fontSize:10,border:`1px solid ${C.copper}30`}}>{a.source}</span></>}
+                {a.source&&<Fragment><span>•</span><span style={{padding:'1px 7px',borderRadius:4,background:`${C.copper}18`,color:C.copper,fontWeight:600,fontSize:10,border:`1px solid ${C.copper}30`}}>{a.source}</span></Fragment>}
               </div>
             </div>
           </div>
@@ -390,17 +391,26 @@ function EVMPage(){
       </div>
       <div style={{background:C.bg.card,border:`1px solid ${C.border.default}`,borderRadius:12,padding:20}}>
         <h3 style={{fontFamily:F.heading,fontSize:14,fontWeight:600,color:C.text.primary,marginBottom:16}}>Curva S — {c.title}</h3>
-        <ResponsiveContainer width="100%" height={320}>
-          <LineChart data={chartData}>
-            <XAxis dataKey="name" tick={{fill:C.text.muted,fontSize:10}} axisLine={{stroke:C.border.default}}/>
-            <YAxis tick={{fill:C.text.muted,fontSize:10}} axisLine={{stroke:C.border.default}} tickFormatter={v=>`$${v}M`}/>
-            <Tooltip contentStyle={{background:C.bg.secondary,border:`1px solid ${C.border.default}`,borderRadius:8,fontSize:12}} formatter={v=>[`$${v}M`]}/>
-            <Legend wrapperStyle={{fontSize:11}}/>
-            <Line type="monotone" dataKey="PV" stroke="#3B82F6" strokeWidth={2} dot={false} name="Valor Planificado (BCWS)"/>
-            <Line type="monotone" dataKey="EV" stroke="#10B981" strokeWidth={2} dot={false} name="Valor Ganado (BCWP)"/>
-            <Line type="monotone" dataKey="AC" stroke="#EF4444" strokeWidth={2} dot={false} name="Costo Real (ACWP)"/>
-          </LineChart>
-        </ResponsiveContainer>
+        {ResponsiveContainer ? (
+          <ResponsiveContainer width="100%" height={320}>
+            <LineChart data={chartData}>
+              <XAxis dataKey="name" tick={{fill:C.text.muted,fontSize:10}} axisLine={{stroke:C.border.default}}/>
+              <YAxis tick={{fill:C.text.muted,fontSize:10}} axisLine={{stroke:C.border.default}} tickFormatter={v=>`$${v}M`}/>
+              <Tooltip contentStyle={{background:C.bg.secondary,border:`1px solid ${C.border.default}`,borderRadius:8,fontSize:12}} formatter={v=>[`$${v}M`]}/>
+              <Legend wrapperStyle={{fontSize:11}}/>
+              <Line type="monotone" dataKey="PV" stroke="#3B82F6" strokeWidth={2} dot={false} name="Valor Planificado (BCWS)"/>
+              <Line type="monotone" dataKey="EV" stroke="#10B981" strokeWidth={2} dot={false} name="Valor Ganado (BCWP)"/>
+              <Line type="monotone" dataKey="AC" stroke="#EF4444" strokeWidth={2} dot={false} name="Costo Real (ACWP)"/>
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div style={{padding:20,textAlign:'center',color:C.text.muted,fontSize:13}}>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+              <thead><tr>{['Período','PV ($M)','EV ($M)','AC ($M)'].map(h=><th key={h} style={{padding:'8px 12px',borderBottom:`1px solid ${C.border.default}`,color:C.text.muted,fontWeight:600,textAlign:'right'}}>{h}</th>)}</tr></thead>
+              <tbody>{chartData.map(d=><tr key={d.name}><td style={{padding:'6px 12px',borderBottom:`1px solid ${C.border.default}`,color:C.text.secondary,textAlign:'right'}}>{d.name}</td><td style={{padding:'6px 12px',borderBottom:`1px solid ${C.border.default}`,color:'#3B82F6',textAlign:'right'}}>${d.PV}M</td><td style={{padding:'6px 12px',borderBottom:`1px solid ${C.border.default}`,color:'#10B981',textAlign:'right'}}>${d.EV}M</td><td style={{padding:'6px 12px',borderBottom:`1px solid ${C.border.default}`,color:'#EF4444',textAlign:'right'}}>${d.AC}M</td></tr>)}</tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -479,7 +489,11 @@ function App(){
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+try {
+  ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+} catch(e) {
+  document.getElementById('root').innerHTML = '<div style="padding:40px;color:#EF4444;font-family:monospace"><h2>Error de renderizado</h2><pre>'+e.message+'</pre></div>';
+}
 </script>
 </body>
 </html>
